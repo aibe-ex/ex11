@@ -3,13 +3,11 @@
 <%@ page import="java.net.URI" %>
 <%@ page import="io.github.cdimascio.dotenv.Dotenv" %>
 <%@ page import="java.net.http.HttpResponse" %>
-<%@ page import="java.io.IOException" %>
 <%@ page import="com.fasterxml.jackson.databind.ObjectMapper" %>
-<%@ page import="com.fasterxml.jackson.core.type.TypeReference" %>
 <%@ page import="java.util.Map" %>
 <%@ page import="java.util.List" %>
 <%@ page import="java.util.HashMap" %>
-<%@ page import="java.util.ArrayList" %>
+<%@ page import="org.example.ex11.model.GeminiResponse" %>
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <!DOCTYPE html>
 <html>
@@ -63,26 +61,35 @@
 <%
     Map<String, List<Map<String, List<Map<String, String>>>>> geminiMap = new HashMap<>();
     List<Map<String, String>> parts = List.of(new HashMap<>());
-    parts.get(0).put("text", request.getParameter("prompt"));
-    List<Map<String, List<Map<String, String>>>> contents = List.of(new HashMap<>());
-    contents.get(0).put("parts", parts);
-    geminiMap.put("contents", contents);
+    String prompt = request.getParameter("prompt");
+    if(prompt == null || prompt.isBlank()) {
+        prompt = "프롬프트가 없습니다";
+        answer = "프롬프트를 입력해주세요";
+    } else {
+        prompt += " no markdown, under 300 character, use korean language, nutshell";
+        parts.get(0).put("text", prompt);
+        List<Map<String, List<Map<String, String>>>> contents = List.of(new HashMap<>());
+        contents.get(0).put("parts", parts);
+        geminiMap.put("contents", contents);
 
-    HttpRequest httpRequest = HttpRequest.newBuilder()
-            .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s".formatted(dotenv.get("GEMINI_KEY"))))
-            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(geminiMap)))
-            .header("Content-Type", "application.json")
-            .build();
-    try {
-        HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-        answer = httpResponse.body();
-    } catch (Exception e) {
-        throw new RuntimeException(e);
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s".formatted(dotenv.get("GEMINI_KEY"))))
+                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(geminiMap)))
+                .header("Content-Type", "application.json")
+                .build();
+        try {
+            HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+//        answer = httpResponse.body();
+            answer = objectMapper.readValue(httpResponse.body(), GeminiResponse.class).candidates().get(0).content().parts().get(0).text();
+        } catch (Exception e) {
+//        throw new RuntimeException(e);
+            answer = e.getMessage();
+        }
     }
 %>
     <form>
         <section class="title">
-            프롬프트 : <%= request.getParameter("prompt") %>
+            프롬프트 : <%= prompt %>
         </section>
         <section>
             답변 : <%= answer %>
